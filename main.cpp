@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <bitset>
+#include <chrono>
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -7,7 +8,7 @@
 #include <unordered_map>
 #include <vector>
 using namespace std;
-
+//wartosci uzywane przy rekurencyjnym brute force
 int best_F = INT16_MAX;
 int temp;
 
@@ -127,6 +128,7 @@ bool sprawdz_bit(int war, int poz) {
 	return ((war >> poz) & 1) == 1 ? true : false;
 }
 
+//Przesuwa 1 o 'przesuniecie' miejsc w lewo 
 int zmien_bit(int liczba, int przesuniecie) {
 	liczba &= ~(1 << przesuniecie);
 	return liczba;
@@ -171,28 +173,146 @@ int PD_iteracyjnie(const vector<parameters>& dane) {
 		int min = *min_element(temp_sums.begin(), temp_sums.end());
 		mapa_wartosci.insert({d, min});
 	}
+	/*for(auto k:mapa_wartosci) {
+		cout << k.first <<". "<< k.second << endl;
+	}*/
 	return mapa_wartosci.rbegin()->second;
 }
 
-int PD_rekurencyjnie(const vector<parameters>& dane) {
-	map<int, int> mapa_wartosci;
-	mapa_wartosci.insert({ pow(2, dane.size()) - 1,-1 });
-	return 0;
+int PD_rekurencyjnie(const vector<parameters>& dane, map<int, int>& mapaF, int szukany_index) {
+	vector<int> temp_sums;
+	int wielkosc_danych = dane.size();
+
+	temp_sums.clear();
+	for (int l = 0; l < wielkosc_danych; l++) {
+		temp_sums.push_back(INT16_MAX);
+	}
+
+	unsigned suma_p = 0;
+	for (int i = 0; i < wielkosc_danych; i++) {
+		if (sprawdz_bit(szukany_index, i)) {
+			//cout << "Potrzebuje dane[" << i << "].p" << endl;
+			suma_p += dane[i].p;
+		}
+	}
+	
+	for (int i = 0; i < wielkosc_danych; i++) {
+		if (sprawdz_bit(szukany_index, i)) {
+			int zmienionny_bit = zmien_bit(szukany_index, i);
+			//cout << "Wartosc (dziesietnie) po obcieciu " << i + 1 << " zera: "
+			//	<< zmienionny_bit << " Binarnie to bedzie: "
+			//	<< bitset<4>(zmienionny_bit) << endl;
+			//cout << "Suma p= " << suma_p << endl;
+			//cout << "Wartosc d= " << dane[i].d << endl;
+			int currentF = mapaF[zmienionny_bit];
+			if (currentF == -1) currentF = PD_rekurencyjnie(dane, mapaF, zmienionny_bit);
+			int max_temp_sum = ((max(suma_p - dane[i].d, 0)) * dane[i].w) + currentF;
+			//cout << "Suma " << bitset<4>(zmienionny_bit) << " jest rowna= " << mapa_wartosci[zmienionny_bit] << " + " << some_sum2 << endl;
+			//cout << "Suma: " << some_sum << endl;
+			temp_sums[i] = max_temp_sum;
+		}
+	}
+	int min = *min_element(temp_sums.begin(), temp_sums.end());
+	mapaF[szukany_index] = min;
+	return min;
 }
+
+void przygotuj_mape(map<int, int>& mapa_wartosci, int rozmiar) {
+	mapa_wartosci.insert({0, 0});
+	for (int i = 1; i < pow(2, rozmiar); i++) {
+		mapa_wartosci.insert({i, -1});
+	}
+}
+
 int main() {
-	vector<parameters> dane = wczytaj(1);
-	cout << calculate_F(dane) << endl;
-	sort(dane.begin(), dane.end(), compare_d);
-	cout << calculate_F(dane) << endl;
-	//cout << opt_permutation(dane) << endl;
-	//findPermutations(dane, 0, dane.size());
-	//cout << best_F << endl;
-	cout << PD_iteracyjnie(dane);
+	//for (int f = 0; f < 1; f++) {
+	/*	auto start = chrono::steady_clock::now();
+		PD_iteracyjnie(dane);
+		auto end = chrono::steady_clock::now();
+		sredni_czas = chrono::duration_cast<chrono::seconds>(end - start).count();*/
+	//	cout << "Czas dla rekurancji:  " << sredni_czas << endl;
+	const unsigned max_size = 13;
+	int liczony_indeks;
+	map<int, int> mapa_wartosci;
+	vector<parameters> dane = wczytaj(0);
+	int nr = 0;
+	int wybor;
+	
+	cout << endl << "0. Wczytaj dane (aktualnie wczytany rozmiar = " << dane.size() << " )" << endl
+		<< "1. Suma F" << endl
+		<< "2. Suma F posortowanych danych wg kary" << endl
+		<< "3. Brute force iteracyjnie" << endl
+		<< "4. Brute force rekurancyjnie" << endl
+		<< "5. Programowanie dynamiczne iteracyjnie" << endl
+		<< "6. Programowanie dynamiczne rekurencyjnie" << endl
+		<< "7. Pokaz menu" << endl
+		<< "9. Zakoncz" << endl;
+	do {
 
-	//system("pause");
+		cin >> wybor;
+		switch (wybor) {
+		case 0:
+			cout << "Podaj nr. pliku ktory chcesz wpisac (0-10): ";
+			cin >> nr;
+			dane = wczytaj(nr);
+			break;
+		case 1:
+			cout << "Wynik to: " << calculate_F(dane) << endl;
+			break;
+		case 2:
+			sort(dane.begin(), dane.end(), compare_d);
+			cout << "Wynik to: " << calculate_F(dane) << endl;
+			break;
+		case 3:
+			if (dane.size() < max_size) {
+				cout << "Licze..." << endl;
+				cout << "Wynik to: " << opt_permutation(dane) << endl;
+			}
+			else {
+				cout << "Za duzy rozmiar danych, zmniejsz rozmiar" << endl;
+			}
+			break;
+		case 4:
+			if (dane.size() < max_size) {
+				cout << "Licze..." << endl;
+				findPermutations(dane, 0, dane.size());
+				cout << "Wynik to: " << best_F << endl;
+			}
+			else {
+				cout << "Za duzy rozmiar danych, zmniejsz rozmiar" << endl;
+			}
+			break;
+		case 5:
+			cout << "Wynik to: " << PD_iteracyjnie(dane) << endl;
+			break;
+		case 6:
+			mapa_wartosci.clear();
+			przygotuj_mape(mapa_wartosci, dane.size());
+			cout << "rozmiar: " << mapa_wartosci.size() << endl;
+			liczony_indeks = pow(2, dane.size()) - 1;
+			cout << "Wynik to: " << PD_rekurencyjnie(dane, mapa_wartosci, liczony_indeks) << endl;
+			break;
+		case 7:
+			cout << endl << "0. Wczytaj dane (aktualnie wczytany rozmiar = " << dane.size() << " )" << endl
+				<< "1. Suma F" << endl
+				<< "2. Suma F posortowanych danych wg kary" << endl
+				<< "3. Brute force iteracyjnie" << endl
+				<< "4. Brute force rekurancyjnie" << endl
+				<< "5. Programowanie dynamiczne iteracyjnie" << endl
+				<< "6. Programowanie dynamiczne rekurencyjnie" << endl
+				<< "9. Zakoncz" << endl;
+			break;
+		case 9:
+			break;
+		default:
+			cout << "Nie ma takiej opcji, wybierz cos z dostepnych mozliwosci " << endl;
+			break;
+		}
+
+	} while (wybor != 9);
+
 	return 0;
 }
-
 
 //int PD(vector<parameters> dane) {
 //	vector<int> maxy;
